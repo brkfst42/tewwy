@@ -1,0 +1,383 @@
+---
+title: "TAP ELDERLY WOMEN'S WISDOM FOR YOUTH"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+    social: menu
+    source_code: embed
+---
+<style>                     
+.navbar {
+  background-color:#4A8E9A
+}
+
+:is(h1, h2, h3, h4, h5, h6) {
+    font-size: 18px;
+    line-height: 20px;
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: bold;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+</style>
+
+![](VFSG Logo to include on viz - light background.png){width=250px}
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(plotly)
+library(broom)
+library(raster)
+library(leaflet)
+library(scales)
+```
+
+```{r, echo=FALSE}
+#prepare data
+phq_testing <- read_csv("JUNE-OCT Patient Health Questionnaire-9 (PHQ-9) Data Pivoted.csv") %>%
+  filter(!grepl("JUNE-OCTOBER Stress Assessment", `Table Name`)) %>%
+  filter(stringr::str_detect(Questions, 'Circle') | stringr::str_detect(Questions, 'Why or why not?')) %>% 
+  filter(Answers == "Yes"| Answers == "No") %>% 
+  distinct(Name, .keep_all = T)
+
+for(i in (phq_testing$`Total score`))
+  {
+  phq_testing$`Total score` = sapply(strsplit(phq_testing$`Total score`,".", fixed = T), getElement, 1)
+}
+
+phq_testing$`Total score` <- as.numeric(as.character(phq_testing$`Total score`))
+
+phq_testing <- phq_testing %>% 
+  mutate(cutoff = case_when(
+    `Total score` < 5 ~ "Negligible", `Total score` < 10 ~ "Mild",
+    `Total score` < 15 ~ "Moderate", `Total score` <20 ~ "Moderately severe", 
+    `Total score` >= 20 ~ "Severe")) %>%
+  dplyr::select(-Timestamp, -Questions, -`Table Name`, -Sheet, -...14)
+
+
+stress_scale_testing <- read_csv("JUNE-OCTOBER Stress Assessment Data Pivoted.csv") %>% 
+  filter(!grepl("JUNE-OCTOBER Stress Assessment", `Table Name`)) %>%
+  filter(stringr::str_detect(Questions, 'Circle')) %>%
+  distinct(Name, .keep_all = T)
+
+for(i in (stress_scale_testing$`Total score`))
+  {
+  stress_scale_testing$`Total score` = 
+    sapply(strsplit(stress_scale_testing$`Total score`,".", fixed = T), 
+           getElement, 1)
+}
+
+stress_scale_testing$`Total score` <- as.numeric(as.character(stress_scale_testing$`Total score`))
+
+stress_scale_testing <- stress_scale_testing %>% 
+  mutate(percentage_score = (stress_scale_testing$`Total score`)/75) %>% 
+  dplyr::select(-Timestamp, -`Table Name`)
+
+joined_dat <- full_join(phq_testing, stress_scale_testing, 
+                         by = c("Name","Gender", "Age", 
+                                "Municipality", "Answers", 
+                                "Wisdom&Wellness Counselor")) %>% 
+  drop_na(Answers) %>%
+  rename("depression_score"= `Total score.x`, 
+         "depression_cutoff" = "cutoff", 
+         "stress_score" = `Total score.y`, 
+         "stress_percentage" = "percentage_score")
+
+joined_dat$Answers <- factor(joined_dat$Answers, levels = c("Yes", "No"))
+
+```
+Row {data-height=80}
+--------------------------------------------------------
+
+**Tap Elderly Women's Wisdom for Youth (TEWWY)** provides psychosocial interventions and mental health services to support communities and individuals. 
+
+**Located in Dar es Salaam, the largest city of Tanzania and the fifth largest city in Africa**, TEWWY offers the modern interpretation of intergenerational fireside chats, during which the elders would impart wisdom to young people. 
+
+Row 
+--------------------------------------------------------
+
+### Operation cost (USD) per quarter of mental health services
+```{r}
+valueBox(scales::dollar(16690.91), icon="fa-bank", col="blue")
+```
+
+### Clients pay for mental health services
+```{r}
+
+valueBox(scales::dollar(0), icon="fa-thumbs-up", col="orange")
+```
+
+### Funds from online fundraising campaigns 
+```{r}
+valueBox(scales::percent(1), icon="fa-lightbulb-o", col="green")
+```
+
+Row
+-----------------------------------------------------------------------
+
+### Age and Gender Distribution of TEWWY Clients
+
+In June to October 2021, TEWWY provided mental health interventions to individuals ranging from age 11 to 88, with an average age of 36.3. In Tanzania, the average age of the population is 18. There may be potential for TEWWY to develop more programs to serve those under 18 years old.
+
+Row {data-height=500}
+-----------------------------------------------------------------------
+### Chart A: Age and Gender Distribution
+
+```{r, message=F, warning=F, echo=F}
+
+ggplot(mapping = aes(x = Age, fill = Gender)) +
+  # female histogram
+  geom_histogram(data = joined_dat %>% filter(Gender == "Female"),
+                 breaks = seq(0,100,5),
+                 colour = "white") + #bar outline colour
+  # male histogram (values converted to negative)
+  geom_histogram(data = joined_dat %>% filter(Gender == "Male"),
+                 breaks = seq(0,100,5),
+                 mapping = aes(y = ..count..*(-1)),
+                 colour = "white") +
+  ggtitle(label = "Age and Gender Distribution of TEWWY Clients") +
+  ylab(label = "Number of clients") +
+  theme_minimal() + 
+  theme(plot.title = element_text(family = "", face='bold', size = 14,
+                                  margin=margin(0,0,30,0),
+                                  hjust = 0.5
+  )) +
+  scale_fill_manual(values = c("#6698FF", "#153E7E")) +
+  scale_x_continuous(breaks=seq(0,100,5), expand = c(0.0, 0)) +
+  scale_y_continuous(breaks = seq(-150, 150, 20), 
+                     labels = c(150, 130, 110, 90, 70, 50, 30, 10, 
+                                10, 30, 50, 70, 90, 110, 130, 150)) +
+  geom_vline(xintercept = 18, linetype="dotted", 
+                color = "black", size=1) +
+  annotate("text", x=15, y=130, label= "18 years") +
+  coord_flip()
+```
+
+Row {data-height=400}
+-----------------------------------------------------------------------
+### TEWWY reaches male and female members of the community
+
+Notably, TEWWY serves men and women in roughly equal numbers. This is in contrast to many nonprofit mental health organizations around the world, which face difficulties reaching men. It is possible that, as TEWWY's counselors are elderly women playing a grandmotherly role and TEWWY's psychosocial interventions are developed from intergenerational fireside chats, men feel comfortable with this approach.  
+
+### Chart B: Gender distribution of TEWWY clients
+
+```{r}
+pal_gender_doughnut <- c("#6698FF", "#153E7E")
+doughnut1 <- joined_dat %>% group_by(Gender) %>% count(Gender) 
+doughnut1$fraction = doughnut1$n / sum(doughnut1$n)
+doughnut1$ymax = cumsum(doughnut1$fraction)
+doughnut1$ymin = c(0, head(doughnut1$ymax, n=-1))
+doughnut1$labelPosition <- (doughnut1$ymax + doughnut1$ymin) / 2
+doughnut1$label <- paste0(doughnut1$Gender, "\n", round(doughnut1$fraction*100, digits =0), "%")
+
+ggplot(doughnut1, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=Gender)) +
+  geom_rect() +
+  coord_polar(theta="y") +
+  ggtitle("Gender of TEWWY clients, \nJune-October 2021") +
+  xlim(c(2, 4)) + 
+  theme_void() +
+  geom_label(x=3.5, 
+             aes(y=labelPosition, label=label, fontface=2), 
+             size=4, label.size = NA, color = "white") +
+  scale_fill_manual(values = c("#6698FF", "#153E7E")) +
+  theme(legend.position = "none") + 
+  theme(plot.title = element_text(family = "", face='bold', 
+                                  size = 14, hjust = 0.5))
+```
+
+Row {data-height=200}
+-----------------------------------------------------------------------
+
+### What is the relationship between depression symptoms and perceived stress? 
+
+Roughly 1,500 individuals who used TEWWY's services between June and October 2021 completed two surveys, the PHQ-9 Questionnaire which measures depression symptom severity and a survey adapted from the Perceived Stress Scale. There is a moderate, positive linear correlation between the two scores (r=0.51). 
+
+However, it is also interesting to note the individuals who may be highly stressed, but do not show depression symptoms, or those who may show some depression symptoms, but do not feel stressed. TEWWY's psychosocial interventions are individualized to serve the needs of each individual client. **(Click or hover over the scatterplot in Chart C to see individual client details.)**
+
+Clients were also asked if they would be interested to attend group therapy; 40% said Yes and 60% said No. 
+
+Row {data-height=500, data-width=550}
+-----------------------------------------------------------------------
+### Chart C: Correlation between self-reported depression symptoms and stress
+
+```{r}
+
+basic_plot <- ggplot(data = joined_dat, aes(label = Name, label2 = Municipality, x = depression_score, y = stress_score)) +
+  geom_point(aes(color = Answers)) + 
+  scale_x_continuous(name="PHQ-9 Depression Symptom Severity (0 to 27)",
+                     breaks = seq(0, 27, by=5)) +
+  scale_y_continuous(name="Perceived Stress Score (0 to 75)",
+                     breaks = seq(0, 75, by=10),
+                     limits=c(0, 75)) +
+  theme_minimal() +
+  scale_color_manual(values = c("#E4C446", "#56B24C"), 
+                     name = "Interested \nin joining \ngroup therapy?") +
+  geom_vline(aes(xintercept = 0)) +
+  geom_hline(aes(yintercept = 0)) + 
+  ggtitle(label = "Clients' Depression Symptom Severity and Perceived Stress Scores") + 
+  theme(legend.title.align=0.5, 
+        plot.title = element_text(family = "", face='bold', size = 14)) 
+
+t <- list(
+  family = "Arial",
+  color = "black")
+
+basic_plot %>% ggplotly() %>% layout(hoverlabel=list(bgcolor="white"), font = t)
+
+```
+
+Row {data-height=600}
+-----------------------------------------------------------------------
+### Chart D: How TEWWY clients' PHQ-9 scores differ across five municipalities in Dar es Salaam
+
+```{r}
+#custom code geom_flat_violin
+"%||%" <- function(a, b) {
+  if (!is.null(a)) a else b
+}
+
+geom_flat_violin <- function(mapping = NULL, data = NULL, stat = "ydensity",
+                             position = "dodge", trim = TRUE, scale = "area",
+                             show.legend = NA, inherit.aes = TRUE, ...) {
+  layer(
+    data = data,
+    mapping = mapping,
+    stat = stat,
+    geom = GeomFlatViolin,
+    position = position,
+    show.legend = show.legend,
+    inherit.aes = inherit.aes,
+    params = list(
+      trim = trim,
+      scale = scale,
+      ...
+    )
+  )
+}
+
+GeomFlatViolin <-
+  ggproto("Violinist", Geom,
+          setup_data = function(data, params) {
+            data$width <- data$width %||%
+              params$width %||% (resolution(data$x, FALSE) * 0.9)
+# ymin, ymax, xmin, and xmax define the bounding rectangle for each group
+            data %>%
+              group_by(group) %>%
+              mutate(ymin = min(y),
+                     ymax = max(y),
+                     xmin = x,
+                     xmax = x + width / 2)
+          },
+          
+          draw_group = function(data, panel_scales, coord) {
+# Find the points for the line to go all the way around
+            data <- transform(data, xminv = x,
+                              xmaxv = x + violinwidth * (xmax - x))
+            
+# Make sure it's sorted properly to draw the outline
+            newdata <- rbind(plyr::arrange(transform(data, x = xminv), y),
+                             plyr::arrange(transform(data, x = xmaxv), -y))
+
+# Close the polygon: set first and last point the same
+            newdata <- rbind(newdata, newdata[1,])
+            
+ggplot2:::ggname("geom_flat_violin", GeomPolygon$draw_panel(newdata, panel_scales, coord)) 
+  }, 
+draw_key = draw_key_polygon, 
+default_aes = aes(weight = .5, colour = "grey20", fill = "white", size = 0.5,
+                            alpha = NA, linetype = "solid"), 
+required_aes = c("x", "y"))
+
+#set order of plot and legend
+joined_dat$Municipality <- factor(joined_dat$Municipality, 
+                                  levels = c("Kinondoni", "Ubungo", 
+                                             "Ilala", "Temeke", "Kigamboni"))
+
+#raincloud plot created here
+ggplot(joined_dat, 
+       aes(x = fct_rev(Municipality), y = `depression_score`, fill = Municipality))+
+  #in aes, use "x = fct_rev(Municipality)" if using coord_flip
+  geom_flat_violin(position = position_nudge(x = .25, y = 0), 
+                   trim=FALSE, alpha = 0.4) +
+  geom_jitter(aes(color = Municipality), 
+             width = .2, size = .5, alpha = .75, show.legend = FALSE) +
+  geom_boxplot(width = .2, alpha = 0.5, fatten = NULL, 
+               position = position_dodge(width=0.5)) +
+  stat_summary(fun = "mean", geom = "point", 
+               position = position_dodge(width = 0.1)
+               ) +
+  stat_summary(fun.data = "mean_se", geom = "errorbar", width = .1, 
+               position = position_dodge(width = 0.1)
+               ) +
+  scale_fill_manual(values = c("#a6611a", "#dfc27d", 
+                               "#fec44f", "#80cdc1", 
+                               "#018571")) +
+  scale_color_manual(values = c("#a6611a", "#dfc27d", 
+                               "#fec44f", "#80cdc1", 
+                               "#018571")) +
+  theme_minimal() +
+  coord_flip() +
+  ggtitle("Five Municipalities of Dar es Salaam\n - Does Depression Symptom Severity Differ?") +
+  theme(plot.title=element_text(size=14, vjust=3, face='bold')) +
+  theme(plot.margin = unit(c(.7,.7,.7,.7), "cm")) +
+  scale_y_continuous(
+    name="PHQ-9 Depression Symptom Severity (0 to 27)\n of TEWWY Clients", 
+    breaks = seq(0, 27, by=5)) +
+  xlab(label= "Municipality")
+
+```
+
+Row {data-height=600}
+-----------------------------------------------------------------------
+
+### Counselor Case Load, by Municipality
+
+```{r}
+#move to sidebar
+#var <- c("depression_score", "stress_score")
+#selectInput(inputId, label = "Select:", choices = var)
+
+ggplot(phq_testing, aes(x = fct_rev(`Wisdom&Wellness Counselor`), 
+                        y = `Total score`, 
+                        fill = `Wisdom&Wellness Counselor`
+                        ), 
+       color = "black") +
+  ggtitle("Counselor Case Load") +
+  xlab(label = "Counselor")+
+# geom_violin(trim = FALSE, show.legend = FALSE, alpha = .4) +
+  geom_boxplot(width = .2, show.legend = FALSE, alpha = .7) +
+  scale_x_discrete(name = "Counselor") +
+  scale_y_continuous(name="PHQ-9 Depression Symptom Severity (0 to 27)",
+                     breaks = seq(0, 27, by=5)) +
+  scale_fill_viridis_d(alpha = .3, option = "D") +
+  theme_minimal() + 
+  theme(plot.title = element_text(family = "", face='bold', size = 14, hjust = 0.37)) +
+  coord_flip()
+
+```
+
+Row 
+--------------------------------------------------------
+
+### Current number of Wisdom & Wellness Counselors
+```{r}
+valueBox(17, icon="fa-smile-o", col="blue")
+```
+
+### Counselors also trained as supervisors
+```{r}
+
+valueBox(3, icon="fa-heart", col="orange")
+```
+
+### Number of counseling sessions supervised
+```{r}
+valueBox(180, icon="fa-sun-o", col="green")
+```
+
+
